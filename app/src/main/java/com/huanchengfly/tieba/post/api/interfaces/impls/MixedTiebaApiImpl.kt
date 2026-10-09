@@ -16,13 +16,13 @@ import com.huanchengfly.tieba.post.api.buildProtobufRequestBody
 import com.huanchengfly.tieba.post.api.getScreenHeight
 import com.huanchengfly.tieba.post.api.getScreenWidth
 import com.huanchengfly.tieba.post.api.interfaces.ITiebaApi
-import com.huanchengfly.tieba.post.api.models.AddThreadBean
 import com.huanchengfly.tieba.post.api.models.AgreeBean
 import com.huanchengfly.tieba.post.api.models.CheckReportBean
 import com.huanchengfly.tieba.post.api.models.CollectDataBean
 import com.huanchengfly.tieba.post.api.models.CommonResponse
 import com.huanchengfly.tieba.post.api.models.ForumGuideBean
 import com.huanchengfly.tieba.post.api.models.FollowBean
+import com.huanchengfly.tieba.post.api.models.FollowListBean
 import com.huanchengfly.tieba.post.api.models.ForumPageBean
 import com.huanchengfly.tieba.post.api.models.ForumRecommend
 import com.huanchengfly.tieba.post.api.models.GetForumListBean
@@ -56,6 +56,12 @@ import com.huanchengfly.tieba.post.api.models.WebUploadPicBean
 import com.huanchengfly.tieba.post.api.models.protos.addPost.AddPostRequest
 import com.huanchengfly.tieba.post.api.models.protos.addPost.AddPostRequestData
 import com.huanchengfly.tieba.post.api.models.protos.addPost.AddPostResponse
+import com.huanchengfly.tieba.post.api.models.protos.addPollPost.AddPollPostReponse
+import com.huanchengfly.tieba.post.api.models.protos.addPollPost.AddPollPostRequest
+import com.huanchengfly.tieba.post.api.models.protos.addPollPost.AddPollPostRequestDate
+import com.huanchengfly.tieba.post.api.models.protos.addThread.AddThreadRequest
+import com.huanchengfly.tieba.post.api.models.protos.addThread.AddThreadRequestData
+import com.huanchengfly.tieba.post.api.models.protos.addThread.AddThreadResponse
 import com.huanchengfly.tieba.post.api.models.protos.forumGuide.ForumGuideRequest
 import com.huanchengfly.tieba.post.api.models.protos.forumGuide.ForumGuideRequestData
 import com.huanchengfly.tieba.post.api.models.protos.forumGuide.ForumGuideResponse
@@ -67,6 +73,9 @@ import com.huanchengfly.tieba.post.api.models.protos.forumRuleDetail.ForumRuleDe
 import com.huanchengfly.tieba.post.api.models.protos.forumRuleDetail.ForumRuleDetailResponse
 import com.huanchengfly.tieba.post.api.models.protos.frsPage.FrsPageRequest
 import com.huanchengfly.tieba.post.api.models.protos.frsPage.FrsPageRequestData
+import com.huanchengfly.tieba.post.api.models.protos.GeneralTabList.GeneralTabListRequest
+import com.huanchengfly.tieba.post.api.models.protos.GeneralTabList.GeneralTabListRequestData
+import com.huanchengfly.tieba.post.api.models.protos.GeneralTabList.GeneralTabListResponse
 import com.huanchengfly.tieba.post.api.models.protos.frsPage.FrsPageResponse
 import com.huanchengfly.tieba.post.api.models.protos.getBawuInfo.GetBawuInfoRequest
 import com.huanchengfly.tieba.post.api.models.protos.getBawuInfo.GetBawuInfoRequestData
@@ -145,6 +154,7 @@ import java.io.IOException
 import java.net.URLEncoder
 
 object MixedTiebaApiImpl : ITiebaApi {
+
     override fun personalized(loadType: Int, page: Int): Call<PersonalizedBean> =
         RetrofitTiebaApi.MINI_TIEBA_API.personalized(loadType, page)
 
@@ -655,6 +665,32 @@ object MixedTiebaApiImpl : ITiebaApi {
         portrait: String,
         tbs: String
     ): Flow<CommonResponse> = RetrofitTiebaApi.OFFICIAL_TIEBA_API.unfollowFlow(portrait, tbs)
+
+    override fun followListFlow(page: Int, uid: Long?): Flow<FollowListBean> =
+        RetrofitTiebaApi.OFFICIAL_TIEBA_API.followListFlow(page, uid)
+
+    override fun getAllFollowFlow(uid: Long?): Flow<FollowListBean> = flow {
+        var currentPage = 1
+        var hasMore = true
+        var finalBean: FollowListBean? = null
+        val allUsers = mutableListOf<FollowListBean.FollowUserBean>()
+
+        while (hasMore) {
+            val response = followListFlow(currentPage, uid).first()
+            if (finalBean == null) {
+                finalBean = response
+            }
+            allUsers.addAll(response.followList)
+            hasMore = response.hasMore == 1
+            currentPage++
+        }
+
+        finalBean?.apply {
+            this.followList = allUsers
+        }?.let {
+            emit(it)
+        }
+    }.flowOn(Dispatchers.IO)
 
     override fun hotMessageList(): Call<HotMessageListBean> =
         RetrofitTiebaApi.WEB_TIEBA_API.hotMessageList()
@@ -1172,6 +1208,52 @@ object MixedTiebaApiImpl : ITiebaApi {
         )
     }
 
+    override fun generalTabList(
+        forumId: Long,
+        forumName: String,
+        tabId: Int,
+        tabType: Int,
+        tabName: String,
+        isGeneralTab: Int,
+        pn: Int,
+        sortType: Int,
+        lastThreadId: Long,
+        isDefaultNavTab: Int,
+    ): Flow<GeneralTabListResponse> {
+        return RetrofitTiebaApi.OFFICIAL_PROTOBUF_TIEBA_POST_API.generalTabListFlow(
+            buildProtobufRequestBody(
+                GeneralTabListRequest(
+                    GeneralTabListRequestData(
+                        common = buildCommonRequest(clientVersion = ClientVersion.TIEBA_V12),
+                        tab_id = tabId,
+                        forum_id = forumId,
+                        pn = pn,
+                        rn = 30,
+                        scr_w = getScreenWidth(),
+                        scr_h = getScreenHeight(),
+                        scr_dip = App.ScreenInfo.DENSITY.toInt(),
+                        last_thread_id = lastThreadId,
+                        is_default_navtab = isDefaultNavTab,
+                        tab_name = tabName,
+                        is_general_tab = isGeneralTab,
+                        sort_type = sortType,
+                        tab_type = tabType,
+                        ad_ext_params = "",
+                        ad_bear_context = "",
+                        has_ad_bear = 0,
+                        ad_bear_sid = "",
+                        ad_bear_sid_price = 0.0,
+                        request_times = 0,
+                        frs_common_info = "",
+                        is_newfrs = 1,
+                        is_video_doublerow = 0,
+                    )
+                ),
+                clientVersion = ClientVersion.TIEBA_V12
+            )
+        )
+    }
+
     override fun syncFlow(clientId: String?): Flow<Sync> =
         RetrofitTiebaApi.OFFICIAL_TIEBA_API.sync(clientId)
 
@@ -1337,11 +1419,11 @@ object MixedTiebaApiImpl : ITiebaApi {
         page: Int,
         subPostId: Long
     ): Flow<PbFloorResponse> {
-        return RetrofitTiebaApi.OFFICIAL_PROTOBUF_TIEBA_V12_API.pbFloorFlow(
+        return RetrofitTiebaApi.OFFICIAL_PROTOBUF_TIEBA_V22_API.pbFloorFlow(
             buildProtobufRequestBody(
                 PbFloorRequest(
                     PbFloorRequestData(
-                        common = buildCommonRequest(clientVersion = ClientVersion.TIEBA_V12),
+                        common = buildCommonRequest(clientVersion = ClientVersion.TIEBA_V22),
                         forum_id = forumId,
                         kz = threadId,
                         pid = postId,
@@ -1354,7 +1436,7 @@ object MixedTiebaApiImpl : ITiebaApi {
                         ori_ugc_type = 0
                     )
                 ),
-                clientVersion = ClientVersion.TIEBA_V12,
+                clientVersion = ClientVersion.TIEBA_V22,
                 needSToken = false
             )
         )
@@ -1536,15 +1618,38 @@ object MixedTiebaApiImpl : ITiebaApi {
         title: String,
         isHide: Int,
         isTitle: Int
-    ): Flow<AddThreadBean> =
-        RetrofitTiebaApi.MINI_TIEBA_API.addThreadFlow(
-            threadContent,
-            kw,
-            fid,
-            title,
-            isHide,
-            isTitle
-        )
+    ): Flow<AddThreadResponse> =
+        RetrofitTiebaApi.OFFICIAL_PROTOBUF_TIEBA_POST_API
+            .addThreadFlow(
+                buildProtobufRequestBody(
+                    AddThreadRequest(
+                        AddThreadRequestData(
+                            anonymous = "1",
+                            can_no_forum = "0",
+                            common = buildCommonRequest(
+                                clientVersion = ClientVersion.TIEBA_V12_POST,
+                                tbs = AccountUtil.getAccountInfo { this.tbs }
+                            ),
+                            content = threadContent,
+                            entrance_type = "0",
+                            fid = fid,
+                            is_hide = isHide.toString(),
+                            is_ntitle = isTitle.toString(),
+                            is_pictxt = "0",
+                            is_show_bless = 0,
+                            kw = kw,
+                            name_show = AccountUtil.getAccountInfo { this.nameShow }
+                                .orEmpty(),
+                            new_vcode = "1",
+                            show_custom_figure = 0,
+                            takephoto_num = "0",
+                            title = title,
+                            vcode_tag = "12",
+                        )
+                    ),
+                    clientVersion = ClientVersion.TIEBA_V12_POST
+                )
+            )
 
     override fun setUserBlackFlow(
         blackUid: Long,
@@ -1616,4 +1721,27 @@ object MixedTiebaApiImpl : ITiebaApi {
         }
     }.flowOn(Dispatchers.IO)
 
+    override fun addPollPost(forumId: Long?, threadId: Long, option: String): Flow<CommonResponse> =
+        RetrofitTiebaApi.HYBRID_TIEBA_API.addPollPost(
+            forumId,
+            threadId,
+            option
+        )
+
+    override fun addPollPostProtobuf(
+        forumId: Long?,
+        threadId: Long,
+        option: String
+    ): Flow<AddPollPostReponse> =
+        RetrofitTiebaApi.OFFICIAL_PROTOBUF_TIEBA_POST_API.addPollPostProtobuf(
+            buildProtobufRequestBody(
+                AddPollPostRequest(
+                    AddPollPostRequestDate(
+                        forum_id = forumId ?: 0L,
+                        thread_id = threadId,
+                        options = option,
+                    )
+                )
+            )
+        )
 }
