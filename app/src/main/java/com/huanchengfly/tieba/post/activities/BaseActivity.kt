@@ -18,6 +18,7 @@ import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.annotation.CallSuper
 import androidx.annotation.ColorInt
 import androidx.annotation.Keep
@@ -105,6 +106,22 @@ abstract class BaseActivity : AppCompatActivity(), ExtraRefreshable, CoroutineSc
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Fragment 返回拦截：默认禁用，仅在有 Fragment 回退栈时启用。
+        // 默认禁用是关键：系统只有在没有已启用的 OnBackPressedCallback 时，
+        // 才会播放预测性返回动画（拖动时看到后面页面），禁用后动画可正常呈现。
+        val handleBackCallback = object : OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                if (!HandleBackUtil.handleBackPress(this@BaseActivity)) {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        }
+        onBackPressedDispatcher.addCallback(this, handleBackCallback)
+        supportFragmentManager.addOnBackStackChangedListener {
+            handleBackCallback.isEnabled = supportFragmentManager.backStackEntryCount > 0
+        }
         if (isNeedFixBg) fixBackground()
         getDeviceDensity()
         INSTANCE.addActivity(this)
@@ -196,12 +213,6 @@ abstract class BaseActivity : AppCompatActivity(), ExtraRefreshable, CoroutineSc
         super.setSupportActionBar(toolbar)
         if (toolbar is TintToolbar) {
             mTintToolbar = toolbar
-        }
-    }
-
-    override fun onBackPressed() {
-        if (!HandleBackUtil.handleBackPress(this)) {
-            super.onBackPressed()
         }
     }
 

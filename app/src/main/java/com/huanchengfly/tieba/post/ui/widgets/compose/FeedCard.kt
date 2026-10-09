@@ -59,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEach
@@ -119,6 +120,7 @@ private fun UserHeader(
     timeProvider: () -> Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    avatarSize: Dp = Sizes.Small,
     content: @Composable RowScope.() -> Unit,
 ) {
     val context = LocalContext.current
@@ -128,7 +130,7 @@ private fun UserHeader(
         avatar = {
             Avatar(
                 data = user.get { StringUtil.getAvatarUrl(portrait) },
-                size = Sizes.Small,
+                size = avatarSize,
                 contentDescription = stringResource(id = R.string.user_portrait)
             )
         },
@@ -164,6 +166,7 @@ fun UserHeader(
     portraitProvider: () -> String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    avatarSize: Dp = Sizes.Small,
     timeProvider: (() -> Int)? = null,
     content: @Composable RowScope.() -> Unit = {},
 ) {
@@ -176,7 +179,7 @@ fun UserHeader(
         avatar = {
             Avatar(
                 data = StringUtil.getAvatarUrl(portrait),
-                size = Sizes.Small,
+                size = avatarSize,
                 contentDescription = stringResource(id = R.string.user_portrait)
             )
         },
@@ -378,7 +381,7 @@ fun ForumInfoChip(
             .clip(RoundedCornerShape(4.dp))
             .background(color = ExtendedTheme.colors.chip)
             .debounceClickable(onClick = onClick)
-            .padding(4.dp),
+            .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -396,7 +399,7 @@ fun ForumInfoChip(
             text = stringResource(id = R.string.title_forum_name, name),
             style = MaterialTheme.typography.body2,
             color = ExtendedTheme.colors.onChip,
-            fontSize = 12.sp,
+            fontSize = 15.sp,
         )
     }
 }
@@ -767,15 +770,13 @@ fun FeedCard(
 ) {
     Card(
         header = {
-            val author = remember(item) { item.getNullableImmutable { author } }
-            author?.let {
-                UserHeader(
-                    userProvider = { it },
-                    timeProvider = { item.get { lastTimeInt } },
-                    onClick = {
-                        onClickUser(it.get())
-                    },
-                ) { dislikeAction() }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                ThreadForumInfo(item = item, onClick = onClickForum)
+                dislikeAction()
             }
         },
         content = {
@@ -806,7 +807,15 @@ fun FeedCard(
                     )
                 }
 
-            ThreadForumInfo(item = item, onClick = onClickForum)
+            val author = remember(item) { item.getNullableImmutable { author } }
+            author?.let {
+                UserHeader(
+                    userProvider = { it },
+                    timeProvider = { item.get { lastTimeInt } },
+                    avatarSize = 24.dp,
+                    onClick = { onClickUser(it.get()) },
+                ) {}
+            }
         },
         action = {
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -850,14 +859,10 @@ fun FeedCard(
 ) {
     Card(
         header = {
-            UserHeader(
-                nameProvider = { item.get { threadInfo.author.name.toString() } },
-                nameShowProvider = { item.get { threadInfo.author.showNickName } },
-                portraitProvider = { item.get { threadInfo.author.portrait } },
-                timeProvider = { item.get { threadInfo.createTime.toInt() } },
-                onClick = {
-                    onClickUser(item.get { threadInfo.userId })
-                },
+            ThreadForumInfo(
+                forumName = item.get { threadInfo.forumName },
+                forumAvatar = null,
+                onClick = { onClickForum(item.get { threadInfo.forumName }) }
             )
         },
         content = {
@@ -873,10 +878,13 @@ fun FeedCard(
                 forumName = item.get { threadInfo.forumName },
                 threadId = item.get { threadInfo.threadId },
             )
-            ThreadForumInfo(
-                forumName = item.get { threadInfo.forumName },
-                forumAvatar = null,
-                onClick = { onClickForum(item.get { threadInfo.forumName }) }
+            UserHeader(
+                nameProvider = { item.get { threadInfo.author.name.toString() } },
+                nameShowProvider = { item.get { threadInfo.author.showNickName } },
+                portraitProvider = { item.get { threadInfo.author.portrait } },
+                timeProvider = { item.get { threadInfo.createTime.toInt() } },
+                avatarSize = 24.dp,
+                onClick = { onClickUser(item.get { threadInfo.userId }) },
             )
         },
         action = {
@@ -919,14 +927,10 @@ fun FeedCard(
 ) {
     Card(
         header = {
-            UserHeader(
-                nameProvider = { item.get { user_name } },
-                nameShowProvider = { item.get { name_show } },
-                portraitProvider = { item.get { user_portrait } },
-                timeProvider = { item.get { create_time } },
-                onClick = {
-                    onClickUser(item.get { user_id })
-                },
+            ThreadForumInfo(
+                forumName = item.get { forum_name },
+                forumAvatar = null,
+                onClick = { onClickForum(item.get { forum_name }) }
             )
         },
         content = {
@@ -959,10 +963,13 @@ fun FeedCard(
                     )
                 }
 
-            ThreadForumInfo(
-                forumName = item.get { forum_name },
-                forumAvatar = null,
-                onClick = { onClickForum(item.get { forum_name }) }
+            UserHeader(
+                nameProvider = { item.get { user_name } },
+                nameShowProvider = { item.get { name_show } },
+                portraitProvider = { item.get { user_portrait } },
+                timeProvider = { item.get { create_time } },
+                avatarSize = 24.dp,
+                onClick = { onClickUser(item.get { user_id }) },
             )
         },
         action = {
